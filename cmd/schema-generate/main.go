@@ -8,12 +8,13 @@ import (
 	"io"
 	"os"
 
-	"github.com/a-h/generate"
+	"github.com/Graff913/generate-go-json-schema"
 )
 
 var (
 	o                     = flag.String("o", "", "The output file for the schema.")
 	p                     = flag.String("p", "main", "The package that the structs are created in.")
+	bson                  = flag.Bool("bson", false, "Generate bson tags")
 	i                     = flag.String("i", "", "A single file path (used for backwards compatibility).")
 	schemaKeyRequiredFlag = flag.Bool("schemaKeyRequired", false, "Allow input files with no $schema key.")
 )
@@ -46,7 +47,7 @@ func main() {
 
 	g := generate.New(schemas...)
 
-	err = g.CreateTypes()
+	err = g.CreateTypes(*p, *bson)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Failure generating structs: ", err)
 		os.Exit(1)
@@ -63,5 +64,5 @@ func main() {
 		}
 	}
 
-	generate.Output(w, g, *p)
+	generate.Output(w, g, *p, *bson)
 }

@@ -45,7 +45,7 @@ func TestThatCapitalisationOccursCorrectly(t *testing.T) {
 func TestFieldGeneration(t *testing.T) {
 	properties := map[string]*Schema{
 		"property1": {TypeValue: "string"},
-		"property2": {Reference: "#/definitions/address"},
+		"property2": {Reference: "#/$defs/address"},
 		// test sub-objects with properties or additionalProperties
 		"property3": {TypeValue: "object", Title: "SubObj1", Properties: map[string]*Schema{"name": {TypeValue: "string"}}},
 		"property4": {TypeValue: "object", Title: "SubObj2", AdditionalProperties: &AdditionalProperties{TypeValue: "integer"}},
@@ -73,41 +73,33 @@ func TestFieldGeneration(t *testing.T) {
 	}
 	root.Init()
 	g := New(&root)
-	err := g.CreateTypes()
+	err := g.CreateTypes("main", false)
 
-	// Output(os.Stderr, g, "test")
+	//Output(os.Stderr, g, "test")
 
 	if err != nil {
 		t.Error("Failed to get the fields: ", err)
 	}
 
-	if len(g.Structs) != 8 {
-		t.Errorf("Expected 8 results, but got %d results", len(g.Structs))
+	if len(g.Structs) != 6 {
+		t.Errorf("Expected 6 results, but got %d results", len(g.Structs))
 	}
 
-	testField(g.Structs["TestFieldGeneration"].Fields["Property1"], "property1", "Property1", "string", false, t)
+	testField(g.Structs["TestFieldGeneration"].Fields["Property1"], "property1", "Property1", "*string", false, t)
 	testField(g.Structs["TestFieldGeneration"].Fields["Property2"], "property2", "Property2", "*Address", true, t)
 	testField(g.Structs["TestFieldGeneration"].Fields["Property3"], "property3", "Property3", "*SubObj1", false, t)
 	testField(g.Structs["TestFieldGeneration"].Fields["Property4"], "property4", "Property4", "map[string]int", false, t)
 	testField(g.Structs["TestFieldGeneration"].Fields["Property5"], "property5", "Property5", "*SubObj3", false, t)
 	testField(g.Structs["TestFieldGeneration"].Fields["Property6"], "property6", "Property6", "map[string]*SubObj4a", false, t)
-	testField(g.Structs["TestFieldGeneration"].Fields["Property7"], "property7", "Property7", "*Property7", false, t)
+	testField(g.Structs["TestFieldGeneration"].Fields["Property7"], "property7", "Property7", "map[string]interface{}", false, t)
 	testField(g.Structs["TestFieldGeneration"].Fields["Property8"], "property8", "Property8", "*SubObj5", false, t)
 
-	testField(g.Structs["SubObj1"].Fields["Name"], "name", "Name", "string", false, t)
+	testField(g.Structs["SubObj1"].Fields["Name"], "name", "Name", "*string", false, t)
 	testField(g.Structs["SubObj3"].Fields["SubObj3a"], "SubObj3a", "SubObj3a", "*SubObj3a", false, t)
-	testField(g.Structs["SubObj4a"].Fields["Subproperty1"], "subproperty1", "Subproperty1", "int", false, t)
+	testField(g.Structs["SubObj4a"].Fields["Subproperty1"], "subproperty1", "Subproperty1", "*int", false, t)
 
-	testField(g.Structs["SubObj5"].Fields["Name"], "name", "Name", "string", false, t)
+	testField(g.Structs["SubObj5"].Fields["Name"], "name", "Name", "*string", false, t)
 	testField(g.Structs["SubObj5"].Fields["AdditionalProperties"], "-", "AdditionalProperties", "map[string]int", false, t)
-
-	if strct, ok := g.Structs["Property7"]; !ok {
-		t.Fatal("Property7 wasn't generated")
-	} else {
-		if len(strct.Fields) != 0 {
-			t.Fatal("Property7 expected 0 fields")
-		}
-	}
 }
 
 func TestFieldGenerationWithArrayReferences(t *testing.T) {
@@ -116,7 +108,7 @@ func TestFieldGenerationWithArrayReferences(t *testing.T) {
 		"property2": {
 			TypeValue: "array",
 			Items: &Schema{
-				Reference: "#/definitions/address",
+				Reference: "#/$defs/address",
 			},
 		},
 		"property3": {
@@ -129,7 +121,7 @@ func TestFieldGenerationWithArrayReferences(t *testing.T) {
 		"property4": {
 			TypeValue: "array",
 			Items: &Schema{
-				Reference: "#/definitions/outer",
+				Reference: "#/$defs/outer",
 			},
 		},
 	}
@@ -143,7 +135,7 @@ func TestFieldGenerationWithArrayReferences(t *testing.T) {
 		Properties: properties,
 		Definitions: map[string]*Schema{
 			"address": {TypeValue: "object"},
-			"outer":   {TypeValue: "array", Items: &Schema{Reference: "#/definitions/inner"}},
+			"outer":   {TypeValue: "array", Items: &Schema{Reference: "#/$defs/inner"}},
 			"inner":   {TypeValue: "object"},
 		},
 		Required: requiredFields,
@@ -151,7 +143,7 @@ func TestFieldGenerationWithArrayReferences(t *testing.T) {
 	root.Init()
 
 	g := New(&root)
-	err := g.CreateTypes()
+	err := g.CreateTypes("main", false)
 
 	//Output(os.Stderr, g, "test")
 
@@ -159,11 +151,11 @@ func TestFieldGenerationWithArrayReferences(t *testing.T) {
 		t.Error("Failed to get the fields: ", err)
 	}
 
-	if len(g.Structs) != 3 {
-		t.Errorf("Expected 3 results, but got %d results", len(g.Structs))
+	if len(g.Structs) != 1 {
+		t.Errorf("Expected 1 results, but got %d results", len(g.Structs))
 	}
 
-	testField(g.Structs["TestFieldGenerationWithArrayReferences"].Fields["Property1"], "property1", "Property1", "string", false, t)
+	testField(g.Structs["TestFieldGenerationWithArrayReferences"].Fields["Property1"], "property1", "Property1", "*string", false, t)
 	testField(g.Structs["TestFieldGenerationWithArrayReferences"].Fields["Property2"], "property2", "Property2", "[]*Address", true, t)
 	testField(g.Structs["TestFieldGenerationWithArrayReferences"].Fields["Property3"], "property3", "Property3", "[]map[string]int", false, t)
 	testField(g.Structs["TestFieldGenerationWithArrayReferences"].Fields["Property4"], "property4", "Property4", "[][]*Inner", false, t)
@@ -199,7 +191,7 @@ func TestNestedStructGeneration(t *testing.T) {
 	root.Init()
 
 	g := New(root)
-	err := g.CreateTypes()
+	err := g.CreateTypes("main", false)
 	results := g.Structs
 
 	//Output(os.Stderr, g, "test")
@@ -240,7 +232,7 @@ func TestEmptyNestedStructGeneration(t *testing.T) {
 	root.Init()
 
 	g := New(root)
-	err := g.CreateTypes()
+	err := g.CreateTypes("main", false)
 	results := g.Structs
 
 	// Output(os.Stderr, g, "test")
@@ -307,13 +299,13 @@ func TestStructGeneration(t *testing.T) {
 	}
 	root.Properties = map[string]*Schema{
 		"property1": {TypeValue: "string"},
-		"property2": {Reference: "#/definitions/address"},
+		"property2": {Reference: "#/$defs/address"},
 	}
 
 	root.Init()
 
 	g := New(root)
-	err := g.CreateTypes()
+	err := g.CreateTypes("main", false)
 	results := g.Structs
 
 	// Output(os.Stderr, g, "test")
@@ -344,7 +336,7 @@ func TestArrayGeneration(t *testing.T) {
 	root.Init()
 
 	g := New(root)
-	err := g.CreateTypes()
+	err := g.CreateTypes("main", false)
 	results := g.Structs
 
 	// Output(os.Stderr, g, "test")
@@ -402,10 +394,10 @@ func TestNestedArrayGeneration(t *testing.T) {
 	root.Init()
 
 	g := New(root)
-	err := g.CreateTypes()
+	err := g.CreateTypes("main", false)
 	results := g.Structs
 
-	// Output(os.Stderr, g, "test")
+	//Output(os.Stderr, g, "test", false)
 
 	if err != nil {
 		t.Error("Failed to create structs: ", err)
@@ -460,7 +452,7 @@ func TestMultipleSchemaStructGeneration(t *testing.T) {
 		Title: "Root1Element",
 		ID06:  "http://example.com/schema/root1",
 		Properties: map[string]*Schema{
-			"property1": {Reference: "root2#/definitions/address"},
+			"property1": {Reference: "root2#/$defs/address"},
 		},
 	}
 
@@ -468,7 +460,7 @@ func TestMultipleSchemaStructGeneration(t *testing.T) {
 		Title: "Root2Element",
 		ID06:  "http://example.com/schema/root2",
 		Properties: map[string]*Schema{
-			"property1": {Reference: "#/definitions/address"},
+			"property1": {Reference: "#/$defs/address"},
 		},
 		Definitions: map[string]*Schema{
 			"address": {
@@ -484,7 +476,7 @@ func TestMultipleSchemaStructGeneration(t *testing.T) {
 	root2.Init()
 
 	g := New(root1, root2)
-	err := g.CreateTypes()
+	err := g.CreateTypes("main", false)
 	results := g.Structs
 
 	// Output(os.Stderr, g, "test")
@@ -568,7 +560,7 @@ func TestThatArraysWithoutDefinedItemTypesAreGeneratedAsEmptyInterfaces(t *testi
 	root.Init()
 
 	g := New(root)
-	err := g.CreateTypes()
+	err := g.CreateTypes("main", false)
 	results := g.Structs
 
 	// Output(os.Stderr, g, "test")
@@ -602,7 +594,7 @@ func TestThatTypesWithMultipleDefinitionsAreGeneratedAsEmptyInterfaces(t *testin
 	root.Init()
 
 	g := New(root)
-	err := g.CreateTypes()
+	err := g.CreateTypes("main", false)
 	results := g.Structs
 
 	// Output(os.Stderr, g, "test")
@@ -691,19 +683,19 @@ func TestTypeAliases(t *testing.T) {
 		structs, aliases int
 	}{
 		{
-			gotype:  "string",
+			gotype:  "*string",
 			input:   &Schema{TypeValue: "string"},
 			structs: 0,
 			aliases: 1,
 		},
 		{
-			gotype:  "int",
+			gotype:  "*int",
 			input:   &Schema{TypeValue: "integer"},
 			structs: 0,
 			aliases: 1,
 		},
 		{
-			gotype:  "bool",
+			gotype:  "*bool",
 			input:   &Schema{TypeValue: "boolean"},
 			structs: 0,
 			aliases: 1,
@@ -751,7 +743,7 @@ func TestTypeAliases(t *testing.T) {
 		test.input.Init()
 
 		g := New(test.input)
-		err := g.CreateTypes()
+		err := g.CreateTypes("main", false)
 		structs := g.Structs
 		aliases := g.Aliases
 

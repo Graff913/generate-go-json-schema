@@ -31,7 +31,7 @@ func getOrderedStructNames(m map[string]Struct) []string {
 }
 
 // Output generates code and writes to w.
-func Output(w io.Writer, g *Generator, pkg string) {
+func Output(w io.Writer, g *Generator, pkg string, bson bool) {
 	structs := g.Structs
 	aliases := g.Aliases
 
@@ -43,14 +43,14 @@ func Output(w io.Writer, g *Generator, pkg string) {
 	// write list of imports into main output stream, followed by the code
 	codeBuf := new(bytes.Buffer)
 	imports := make(map[string]bool)
-
-	for _, k := range getOrderedStructNames(structs) {
-		s := structs[k]
-		if s.GenerateCode {
-			emitMarshalCode(codeBuf, s, imports)
-			emitUnmarshalCode(codeBuf, s, imports)
-		}
-	}
+	imports["time"] = true
+	//for _, k := range getOrderedStructNames(structs) {
+	//	s := structs[k]
+	//	if s.GenerateCode {
+	//		emitMarshalCode(codeBuf, s, imports)
+	//		emitUnmarshalCode(codeBuf, s, imports)
+	//	}
+	//}
 
 	if len(imports) > 0 {
 		fmt.Fprintf(w, "\nimport (\n")
@@ -73,25 +73,48 @@ func Output(w io.Writer, g *Generator, pkg string) {
 
 		fmt.Fprintln(w, "")
 		outputNameAndDescriptionComment(s.Name, s.Description, w)
-		fmt.Fprintf(w, "type %s struct {\n", s.Name)
-
-		for _, fieldKey := range getOrderedFieldNames(s.Fields) {
-			f := s.Fields[fieldKey]
-
-			// Only apply omitempty if the field is not required.
-			omitempty := ",omitempty"
-			if f.Required {
-				omitempty = ""
+		if len(s.Enums) > 0 {
+			fmt.Fprintf(w, "type %s string\n", s.Name)
+			fmt.Fprintln(w, "")
+			fmt.Fprintln(w, "const (")
+			for _, val := range s.Enums {
+				fmt.Fprintf(w, "\t%s %s = \"%s\"\n", val.Name, s.Name, val.Const)
 			}
+			fmt.Fprintln(w, ")")
+		} else if s.Func.Name != "" {
+			fmt.Fprintf(w, "type %s interface {\n", s.Name)
 
-			if f.Description != "" {
-				outputFieldDescriptionComment(f.Description, w)
+			fmt.Fprintf(w, "  %s() bool \n", s.Func.Name)
+
+			fmt.Fprintln(w, "}")
+
+			for _, val := range s.Func.NameTypes {
+				fmt.Fprintln(w, "")
+				fmt.Fprintf(w, "func (d *%s) %s() bool {\n", val, s.Func.Name)
+				fmt.Fprintf(w, "  return true\n")
+				fmt.Fprintln(w, "}")
 			}
-
-			fmt.Fprintf(w, "  %s %s `json:\"%s%s\"`\n", f.Name, f.Type, f.JSONName, omitempty)
+		} else {
+			fmt.Fprintf(w, "type %s struct {\n", s.Name)
+			for _, fieldKey := range getOrderedFieldNames(s.Fields) {
+				f := s.Fields[fieldKey]
+				// Only apply omitempty if the field is not required.
+				omitempty := ",omitempty"
+				if f.Required {
+					omitempty = ""
+				}
+				bsonTag := ""
+				if bson {
+					bsonTag = fmt.Sprintf(" bson:\"%s%s\"", f.JSONName, omitempty)
+				}
+				if f.Description != "" {
+					outputFieldDescriptionComment(f.Description, w)
+				}
+				fmt.Fprintf(w, "  %s %s `json:\"%s%s\"%s`\n", f.Name, f.Type, f.JSONName, omitempty, bsonTag)
+			}
+			fmt.Fprintln(w, "}")
 		}
 
-		fmt.Fprintln(w, "}")
 	}
 
 	// write code after structs for clarity

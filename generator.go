@@ -31,7 +31,7 @@ func New(schemas ...*Schema) *Generator {
 }
 
 // CreateTypes creates types from the JSON schemas, keyed by the golang name.
-func (g *Generator) CreateTypes() (err error) {
+func (g *Generator) CreateTypes(pkg string, bson bool) (err error) {
 	if err := g.resolver.Init(); err != nil {
 		return err
 	}
@@ -39,7 +39,7 @@ func (g *Generator) CreateTypes() (err error) {
 	// extract the types
 	for _, schema := range g.schemas {
 		name := g.getSchemaName("", schema)
-		rootType, err := g.processSchema(name, schema)
+		rootType, err := g.processSchema(pkg, name, true, bson, false, schema)
 		if err != nil {
 			return err
 		}
@@ -58,10 +58,10 @@ func (g *Generator) CreateTypes() (err error) {
 	return
 }
 
-// process a block of definitions
-func (g *Generator) processDefinitions(schema *Schema) error {
+// process a block of $defs
+func (g *Generator) processDefinitions(pkg string, schema *Schema) error {
 	for key, subSchema := range schema.Definitions {
-		if _, err := g.processSchema(getGolangName(key), subSchema); err != nil {
+		if _, err := g.processSchema(pkg, getGolangName(key), false, false, false, subSchema); err != nil {
 			return err
 		}
 	}
@@ -69,7 +69,7 @@ func (g *Generator) processDefinitions(schema *Schema) error {
 }
 
 // process a reference string
-func (g *Generator) processReference(schema *Schema) (string, error) {
+func (g *Generator) processReference(pkg string, schema *Schema, requires bool) (string, error) {
 	schemaPath := g.resolver.GetPath(schema)
 	if schema.Reference == "" {
 		return "", errors.New("processReference empty reference: " + schemaPath)
@@ -81,7 +81,7 @@ func (g *Generator) processReference(schema *Schema) (string, error) {
 	if refSchema.GeneratedType == "" {
 		// reference is not resolved yet. Do that now.
 		refSchemaName := g.getSchemaName("", refSchema)
-		typeName, err := g.processSchema(refSchemaName, refSchema)
+		typeName, err := g.processSchema(pkg, refSchemaName, false, false, requires, refSchema)
 		if err != nil {
 			return "", err
 		}
@@ -91,14 +91,17 @@ func (g *Generator) processReference(schema *Schema) (string, error) {
 }
 
 // returns the type refered to by schema after resolving all dependencies
-func (g *Generator) processSchema(schemaName string, schema *Schema) (typ string, err error) {
+func (g *Generator) processSchema(pkg string, schemaName string, rootType, bson, requires bool, schema *Schema) (typ string, err error) {
 	if len(schema.Definitions) > 0 {
-		g.processDefinitions(schema)
+		err := g.processDefinitions(pkg, schema)
+		if err != nil {
+			return "", err
+		}
 	}
 	schema.FixMissingTypeValue()
 	// if we have multiple schema types, the golang type will be interface{}
 	typ = "interface{}"
-	types, isMultiType := schema.MultiType()
+	types, isMultiType, pointer := schema.MultiType()
 	if len(types) > 0 {
 		for _, schemaType := range types {
 			name := schemaName
@@ -107,7 +110,7 @@ func (g *Generator) processSchema(schemaName string, schema *Schema) (typ string
 			}
 			switch schemaType {
 			case "object":
-				rv, err := g.processObject(name, schema)
+				rv, err := g.processObject(pkg, name, rootType, bson, schema)
 				if err != nil {
 					return "", err
 				}
@@ -115,7 +118,7 @@ func (g *Generator) processSchema(schemaName string, schema *Schema) (typ string
 					return rv, nil
 				}
 			case "array":
-				rv, err := g.processArray(name, schema)
+				rv, err := g.processArray(pkg, name, schema)
 				if err != nil {
 					return "", err
 				}
@@ -123,7 +126,7 @@ func (g *Generator) processSchema(schemaName string, schema *Schema) (typ string
 					return rv, nil
 				}
 			default:
-				rv, err := getPrimitiveTypeName(schemaType, "", false)
+				rv, err := getPrimitiveTypeName(schemaType, "", !requires || pointer)
 				if err != nil {
 					return "", err
 				}
@@ -134,7 +137,13 @@ func (g *Generator) processSchema(schemaName string, schema *Schema) (typ string
 		}
 	} else {
 		if schema.Reference != "" {
-			return g.processReference(schema)
+			return g.processReference(pkg, schema, requires)
+		}
+		if len(schema.OneOf) > 0 {
+			return g.processInterface(pkg, schemaName, requires, schema)
+		}
+		if len(schema.EnumValue) > 0 {
+			return g.processEnum(schemaName, schema)
 		}
 	}
 	return // return interface{}
@@ -142,11 +151,11 @@ func (g *Generator) processSchema(schemaName string, schema *Schema) (typ string
 
 // name: name of this array, usually the js key
 // schema: items element
-func (g *Generator) processArray(name string, schema *Schema) (typeStr string, err error) {
+func (g *Generator) processArray(pkg string, name string, schema *Schema) (typeStr string, err error) {
 	if schema.Items != nil {
 		// subType: fallback name in case this array contains inline object without a title
 		subName := g.getSchemaName(name+"Items", schema.Items)
-		subTyp, err := g.processSchema(subName, schema.Items)
+		subTyp, err := g.processSchema(pkg, subName, false, false, true, schema.Items)
 		if err != nil {
 			return "", err
 		}
@@ -173,7 +182,7 @@ func (g *Generator) processArray(name string, schema *Schema) (typeStr string, e
 // name: name of the struct (calculated by caller)
 // schema: detail incl properties & child objects
 // returns: generated type
-func (g *Generator) processObject(name string, schema *Schema) (typ string, err error) {
+func (g *Generator) processObject(pkg string, name string, rootType, bson bool, schema *Schema) (typ string, err error) {
 	strct := Struct{
 		ID:          schema.ID(),
 		Name:        name,
@@ -183,31 +192,42 @@ func (g *Generator) processObject(name string, schema *Schema) (typ string, err 
 	// cache the object name in case any sub-schemas recursively reference it
 	schema.GeneratedType = "*" + name
 	// regular properties
-	for propKey, prop := range schema.Properties {
-		fieldName := getGolangName(propKey)
-		// calculate sub-schema name here, may not actually be used depending on type of schema!
-		subSchemaName := g.getSchemaName(fieldName, prop)
-		fieldType, err := g.processSchema(subSchemaName, prop)
-		if err != nil {
-			return "", err
-		}
+	if rootType && bson {
 		f := Field{
-			Name:        fieldName,
-			JSONName:    propKey,
-			Type:        fieldType,
-			Required:    contains(schema.Required, propKey),
-			Description: prop.Description,
-		}
-		if f.Required {
-			strct.GenerateCode = true
+			Name:     "ObjectId",
+			JSONName: "_id",
+			Type:     "primitive.ObjectID",
+			Required: true,
 		}
 		strct.Fields[f.Name] = f
+	}
+	for propKey, prop := range schema.Properties {
+		if !prop.Deprecated {
+			fieldName := getGolangName(propKey)
+			// calculate sub-schema name here, may not actually be used depending on type of schema!
+			subSchemaName := g.getSchemaName(fieldName, prop)
+			fieldType, err := g.processSchema(pkg, subSchemaName, false, false, contains(schema.Required, propKey), prop)
+			if err != nil {
+				return "", err
+			}
+			f := Field{
+				Name:        fieldName,
+				JSONName:    propKey,
+				Type:        fieldType,
+				Required:    contains(schema.Required, propKey),
+				Description: prop.Description,
+			}
+			if f.Required {
+				strct.GenerateCode = true
+			}
+			strct.Fields[f.Name] = f
+		}
 	}
 	// additionalProperties with typed sub-schema
 	if schema.AdditionalProperties != nil && schema.AdditionalProperties.AdditionalPropertiesBool == nil {
 		ap := (*Schema)(schema.AdditionalProperties)
 		apName := g.getSchemaName("", ap)
-		subTyp, err := g.processSchema(apName, ap)
+		subTyp, err := g.processSchema(pkg, apName, false, false, true, ap)
 		if err != nil {
 			return "", err
 		}
@@ -217,7 +237,7 @@ func (g *Generator) processObject(name string, schema *Schema) (typ string, err 
 		//
 		// If this object is a definition and only contains additional properties, we can't do that or we end up with
 		// no struct
-		isDefinitionObject := strings.HasPrefix(schema.PathElement, "definitions")
+		isDefinitionObject := strings.HasPrefix(schema.PathElement, "$defs")
 		if len(schema.Properties) == 0 && !isDefinitionObject {
 			// since there are no regular properties, we don't need to emit a struct for this object - return the
 			// additionalProperties map type.
@@ -238,7 +258,7 @@ func (g *Generator) processObject(name string, schema *Schema) (typ string, err 
 	}
 	// additionalProperties as either true (everything) or false (nothing)
 	if schema.AdditionalProperties != nil && schema.AdditionalProperties.AdditionalPropertiesBool != nil {
-		if *schema.AdditionalProperties.AdditionalPropertiesBool == true {
+		if *schema.AdditionalProperties.AdditionalPropertiesBool {
 			// everything is valid additional
 			subTyp := "map[string]interface{}"
 			f := Field{
@@ -258,9 +278,77 @@ func (g *Generator) processObject(name string, schema *Schema) (typ string, err 
 			strct.AdditionalType = "false"
 		}
 	}
+	if len(strct.Fields) == 0 {
+		return "map[string]interface{}", nil
+	}
+
 	g.Structs[strct.Name] = strct
+
 	// objects are always a pointer
 	return getPrimitiveTypeName("object", name, true)
+}
+
+func (g *Generator) processInterface(pkg string, name string, requires bool, schema *Schema) (typ string, err error) {
+	name = name + "Interface"
+	strct := Struct{
+		ID:          schema.ID(),
+		Name:        name,
+		Description: schema.Description,
+		Func: Func{
+			Name:      "Is" + toTitle(pkg) + name,
+			NameTypes: nil,
+		},
+	}
+
+	var refer *string
+	for _, oneOf := range schema.OneOf {
+		if oneOf.Reference != "" {
+			refer = &oneOf.Reference
+			split := strings.Split(oneOf.Reference, "/")
+			strct.Func.NameTypes = append(strct.Func.NameTypes, split[len(split)-1])
+		}
+	}
+
+	if len(strct.Func.NameTypes) == 1 {
+		schema.Reference = *refer
+		return g.processReference(pkg, schema, requires)
+	}
+
+	g.Structs[strct.Name] = strct
+
+	return name, nil
+}
+
+func (g *Generator) processEnum(name string, schema *Schema) (typ string, err error) {
+	strct := Struct{
+		ID:          schema.ID(),
+		Name:        name,
+		Description: schema.Description,
+	}
+
+	for _, val := range schema.EnumValue {
+		n := strings.Split(val, ".")
+		strct.Enums = append(strct.Enums, Enum{
+			Name:  name + toTitle(n[len(n)-1]),
+			Const: val,
+		})
+	}
+
+	g.Structs[strct.Name] = strct
+
+	return name, nil
+}
+
+func toTitle(s string) string {
+	r := []rune(s)
+	for idx, val := range r {
+		if idx == 0 {
+			r[idx] = unicode.ToUpper(val)
+		} else {
+			r[idx] = unicode.ToLower(val)
+		}
+	}
+	return string(r)
 }
 
 func contains(s []string, e string) bool {
@@ -280,10 +368,19 @@ func getPrimitiveTypeName(schemaType string, subType string, pointer bool) (name
 		}
 		return "[]" + subType, nil
 	case "boolean":
+		if pointer {
+			return "*bool", nil
+		}
 		return "bool", nil
 	case "integer":
+		if pointer {
+			return "*int", nil
+		}
 		return "int", nil
 	case "number":
+		if pointer {
+			return "*float64", nil
+		}
 		return "float64", nil
 	case "null":
 		return "nil", nil
@@ -296,7 +393,15 @@ func getPrimitiveTypeName(schemaType string, subType string, pointer bool) (name
 		}
 		return subType, nil
 	case "string":
+		if pointer {
+			return "*string", nil
+		}
 		return "string", nil
+	case "time":
+		if pointer {
+			return "*time.Time", nil
+		}
+		return "time.Time", nil
 	}
 
 	return "undefined", fmt.Errorf("failed to get a primitive type for schemaType %s and subtype %s",
@@ -372,7 +477,7 @@ func capitaliseFirstLetter(s string) string {
 
 // Struct defines the data required to generate a struct in Go.
 type Struct struct {
-	// The ID within the JSON schema, e.g. #/definitions/address
+	// The ID within the JSON schema, e.g. #/$defs/address
 	ID string
 	// The golang name, e.g. "Address"
 	Name string
@@ -380,8 +485,22 @@ type Struct struct {
 	Description string
 	Fields      map[string]Field
 
+	Func Func
+
+	Enums []Enum
+
 	GenerateCode   bool
 	AdditionalType string
+}
+
+type Func struct {
+	Name      string
+	NameTypes []string
+}
+
+type Enum struct {
+	Name  string
+	Const string
 }
 
 // Field defines the data required to generate a field in Go.

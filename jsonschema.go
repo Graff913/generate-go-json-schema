@@ -26,11 +26,14 @@ type Schema struct {
 
 	// TypeValue is the schema instance type.
 	// http://json-schema.org/draft-07/json-schema-validation.html#rfc.section.6.1.1
-	TypeValue interface{} `json:"type"`
+	TypeValue   interface{} `json:"type"`
+	FormatValue interface{} `json:"format"`
+	EnumValue   []string    `json:"enum"`
+	Deprecated  bool        `json:"deprecated"`
 
 	// Definitions are inline re-usable schemas.
 	// http://json-schema.org/draft-07/json-schema-validation.html#rfc.section.9
-	Definitions map[string]*Schema
+	Definitions map[string]*Schema `json:"$defs"`
 
 	// Properties, Required and AdditionalProperties describe an object's child instances.
 	// http://json-schema.org/draft-07/json-schema-validation.html#rfc.section.6.5
@@ -120,40 +123,40 @@ func (schema *Schema) ID() string {
 	return schema.ID06
 }
 
-// Type returns the type which is permitted or an empty string if the type field is missing.
-// The 'type' field in JSON schema also allows for a single string value or an array of strings.
-// Examples:
-//   "a" => "a", false
-//   [] => "", false
-//   ["a"] => "a", false
-//   ["a", "b"] => "a", true
-func (schema *Schema) Type() (firstOrDefault string, multiple bool) {
+// MultiType returns "type" as an array
+func (schema *Schema) MultiType() (types []string, isMultiType bool, pointer bool) {
+	if len(schema.EnumValue) > 0 {
+		return nil, false, false
+	}
 	// We've got a single value, e.g. { "type": "object" }
 	if ts, ok := schema.TypeValue.(string); ok {
-		firstOrDefault = ts
-		multiple = false
-		return
-	}
-
-	// We could have multiple types in the type value, e.g. { "type": [ "object", "array" ] }
-	if a, ok := schema.TypeValue.([]interface{}); ok {
-		multiple = len(a) > 1
-		for _, n := range a {
-			if s, ok := n.(string); ok {
-				firstOrDefault = s
-				return
+		if fv, ok := schema.FormatValue.(string); ok {
+			if fv == "date-time" {
+				return []string{"time"}, false, false
 			}
 		}
+		return []string{ts}, false, false
 	}
 
-	return "", multiple
-}
-
-// MultiType returns "type" as an array
-func (schema *Schema) MultiType() ([]string, bool) {
-	// We've got a single value, e.g. { "type": "object" }
-	if ts, ok := schema.TypeValue.(string); ok {
-		return []string{ts}, false
+	if len(schema.OneOf) > 0 {
+		rv := []string{}
+		optional := false
+		for _, t := range schema.OneOf {
+			if t.TypeValue == "null" {
+				optional = true
+			} else {
+				if s, ok := t.TypeValue.(string); ok {
+					if fv, ok := t.FormatValue.(string); ok {
+						if fv == "date-time" {
+							rv = append(rv, "time")
+							continue
+						}
+					}
+					rv = append(rv, s)
+				}
+			}
+		}
+		return rv, len(rv) > 1, optional
 	}
 
 	// We could have multiple types in the type value, e.g. { "type": [ "object", "array" ] }
@@ -164,10 +167,10 @@ func (schema *Schema) MultiType() ([]string, bool) {
 				rv = append(rv, s)
 			}
 		}
-		return rv, len(rv) > 1
+		return rv, len(rv) > 1, false
 	}
 
-	return nil, false
+	return nil, false, false
 }
 
 // GetRoot returns the root schema.
@@ -228,7 +231,7 @@ func (schema *Schema) updatePathElements() {
 	}
 
 	for k, d := range schema.Definitions {
-		d.PathElement = "definitions/" + k
+		d.PathElement = "$defs/" + k
 		d.updatePathElements()
 	}
 
