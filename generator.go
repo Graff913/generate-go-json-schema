@@ -202,26 +202,28 @@ func (g *Generator) processObject(pkg string, name string, rootType, bson bool, 
 		strct.Fields[f.Name] = f
 	}
 	for propKey, prop := range schema.Properties {
-		if !prop.Deprecated {
-			fieldName := getGolangName(propKey)
-			// calculate sub-schema name here, may not actually be used depending on type of schema!
-			subSchemaName := g.getSchemaName(fieldName, prop)
-			fieldType, err := g.processSchema(pkg, subSchemaName, false, false, contains(schema.Required, propKey), prop)
-			if err != nil {
-				return "", err
-			}
-			f := Field{
-				Name:        fieldName,
-				JSONName:    propKey,
-				Type:        fieldType,
-				Required:    contains(schema.Required, propKey),
-				Description: prop.Description,
-			}
-			if f.Required {
-				strct.GenerateCode = true
-			}
-			strct.Fields[f.Name] = f
+		fieldName := getGolangName(propKey)
+		// calculate sub-schema name here, may not actually be used depending on type of schema!
+		subSchemaName := g.getSchemaName(fieldName, prop)
+		fieldType, err := g.processSchema(pkg, subSchemaName, false, false, contains(schema.Required, propKey), prop)
+		if err != nil {
+			return "", err
 		}
+		f := Field{
+			Name:        fieldName,
+			JSONName:    propKey,
+			Type:        fieldType,
+			Required:    contains(schema.Required, propKey),
+			Description: prop.Description,
+		}
+		if prop.Deprecated {
+			f.Description = "@deprecated: " + prop.Description
+		}
+		if f.Required {
+			strct.GenerateCode = true
+		}
+		strct.Fields[f.Name] = f
+
 	}
 	// additionalProperties with typed sub-schema
 	if schema.AdditionalProperties != nil && schema.AdditionalProperties.AdditionalPropertiesBool == nil {
