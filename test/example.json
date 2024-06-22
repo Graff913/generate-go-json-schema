@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-04/schema#",
   "title": "Example",
-  "id": "http://example.com/exampleschema.json",
+  "id": "https://example.com/exampleschema.json",
   "type": "object",
   "description": "An example JSON Schema",
   "properties": {
@@ -9,14 +9,42 @@
       "type": "string"
     },
     "address": {
-      "$ref": "#/$defs/address"
+      "$ref": "#/$defs/Address"
     },
     "status": {
-      "$ref": "#/$defs/status"
+      "$ref": "#/$defs/Status"
+    },
+    "period": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Period"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "component": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Info"
+        },
+        {
+          "$ref": "#/$defs/InfoV2"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
+  "required": [
+    "name",
+    "address",
+    "status"
+  ],
   "$defs": {
-    "address": {
+    "Address": {
       "id": "address",
       "type": "object",
       "description": "Address",
@@ -30,22 +58,78 @@
           "type": "integer",
           "description": "House Number"
         }
-      }
+      },
+      "required": [
+        "street",
+        "houseNumber"
+      ]
     },
-    "status": {
+    "Status": {
+      "type": "string",
+      "enum": [
+        "OPEN",
+        "CLOSE"
+      ]
+    },
+    "TextStatus": {
+      "type": "string",
+      "enum": [
+        "create_text",
+        "delete_text"
+      ]
+    },
+    "TaskStatus": {
+      "type": "string",
+      "enum": [
+        "create.task",
+        "delete.task"
+      ]
+    },
+    "Period": {
       "type": "object",
       "properties": {
-        "favouriteCat": {
-          "enum": [
-            "A",
-            "B",
-            "C"
-          ],
+        "from": {
           "type": "string",
-          "description": "The favourite cat.",
-          "maxLength": 1
+          "format": "date-time"
+        },
+        "to": {
+          "type": "string",
+          "format": "date-time"
         }
-      }
+      },
+      "required": [
+        "from",
+        "to"
+      ]
+    },
+    "Info": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "InfoV2": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ]
     }
   }
 }

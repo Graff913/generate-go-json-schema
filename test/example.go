@@ -2,35 +2,80 @@
 
 package main
 
+import (
+	"time"
+)
+
 // Address Address
 type Address struct {
 
 	// House Number
-	HouseNumber *int `json:"houseNumber,omitempty"`
+	HouseNumber int `json:"houseNumber"`
 
 	// Address 1
-	Street *string `json:"street,omitempty"`
+	Street string `json:"street"`
+}
+
+// ComponentInterface
+type ComponentInterface interface {
+	IsMainComponentInterface() bool
+}
+
+func (d *Info) IsMainComponentInterface() bool {
+	return true
+}
+
+func (d *InfoV2) IsMainComponentInterface() bool {
+	return true
 }
 
 // Example An example JSON Schema
 type Example struct {
-	Address *Address `json:"address,omitempty"`
-	Name    *string  `json:"name,omitempty"`
-	Status  *Status  `json:"status,omitempty"`
+	Address   *Address           `json:"address"`
+	Component ComponentInterface `json:"component,omitempty"`
+	Name      string             `json:"name"`
+	Period    *Period            `json:"period,omitempty"`
+	Status    Status             `json:"status"`
 }
 
-// FavouriteCat The favourite cat.
-type FavouriteCat string
+// Info
+type Info struct {
+	Id      string `json:"id"`
+	Version *int   `json:"version,omitempty"`
+}
 
-const (
-	FavouriteCatA FavouriteCat = "A"
-	FavouriteCatB FavouriteCat = "B"
-	FavouriteCatC FavouriteCat = "C"
-)
+// InfoV2
+type InfoV2 struct {
+	Id      string `json:"id"`
+	Version int    `json:"version"`
+}
+
+// Period
+type Period struct {
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
+}
 
 // Status
-type Status struct {
+type Status string
 
-	// The favourite cat.
-	FavouriteCat FavouriteCat `json:"favouriteCat,omitempty"`
-}
+const (
+	StatusOpen  Status = "OPEN"
+	StatusClose Status = "CLOSE"
+)
+
+// TaskStatus
+type TaskStatus string
+
+const (
+	TaskStatusCreateTask TaskStatus = "create.task"
+	TaskStatusDeleteTask TaskStatus = "delete.task"
+)
+
+// TextStatus
+type TextStatus string
+
+const (
+	TextStatusCreateText TextStatus = "create_text"
+	TextStatusDeleteText TextStatus = "delete_text"
+)

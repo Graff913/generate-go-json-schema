@@ -330,8 +330,15 @@ func (g *Generator) processEnum(name string, schema *Schema) (typ string, err er
 
 	for _, val := range schema.EnumValue {
 		n := strings.Split(val, ".")
+		if len(n) == 1 {
+			n = strings.Split(val, "_")
+		}
+		customName := name
+		for i := 0; i < len(n); i++ {
+			customName += toTitle(n[i])
+		}
 		strct.Enums = append(strct.Enums, Enum{
-			Name:  name + toTitle(n[len(n)-1]),
+			Name:  customName,
 			Const: val,
 		})
 	}
