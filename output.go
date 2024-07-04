@@ -31,7 +31,7 @@ func getOrderedStructNames(m map[string]Struct) []string {
 }
 
 // Output generates code and writes to w.
-func Output(w io.Writer, g *Generator, pkg string, bson bool) {
+func Output(w io.Writer, g *Generator, pkg string, bson bool, tagOmitempty bool) {
 	structs := g.Structs
 	aliases := g.Aliases
 
@@ -44,6 +44,9 @@ func Output(w io.Writer, g *Generator, pkg string, bson bool) {
 	codeBuf := new(bytes.Buffer)
 	imports := make(map[string]bool)
 	imports["time"] = true
+	if bson {
+		imports["go.mongodb.org/mongo-driver/bson/primitive"] = true
+	}
 	//for _, k := range getOrderedStructNames(structs) {
 	//	s := structs[k]
 	//	if s.GenerateCode {
@@ -100,7 +103,7 @@ func Output(w io.Writer, g *Generator, pkg string, bson bool) {
 				f := s.Fields[fieldKey]
 				// Only apply omitempty if the field is not required.
 				omitempty := ",omitempty"
-				if f.Required {
+				if tagOmitempty || f.Required {
 					omitempty = ""
 				}
 				bsonTag := ""

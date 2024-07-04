@@ -15,6 +15,7 @@ var (
 	o                     = flag.String("o", "", "The output file for the schema.")
 	p                     = flag.String("p", "main", "The package that the structs are created in.")
 	bson                  = flag.Bool("bson", false, "Generate bson tags")
+	omitempty             = flag.Bool("omitempty", false, "Generate omitempty tags")
 	i                     = flag.String("i", "", "A single file path (used for backwards compatibility).")
 	schemaKeyRequiredFlag = flag.Bool("schemaKeyRequired", false, "Allow input files with no $schema key.")
 )
@@ -64,5 +65,5 @@ func main() {
 		}
 	}
 
-	generate.Output(w, g, *p, *bson)
+	generate.Output(w, g, *p, *bson, *omitempty)
 }
