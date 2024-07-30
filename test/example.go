@@ -40,8 +40,9 @@ type Example struct {
 
 // Info
 type Info struct {
-	Id      string `json:"id"`
-	Version *int   `json:"version,omitempty"`
+	Date    *time.Time `json:"date,omitempty"`
+	Id      string     `json:"id"`
+	Version *int       `json:"version,omitempty"`
 }
 
 // InfoV2

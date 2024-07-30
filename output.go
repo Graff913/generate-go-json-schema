@@ -43,10 +43,17 @@ func Output(w io.Writer, g *Generator, pkg string, bson bool, tagOmitempty bool)
 	// write list of imports into main output stream, followed by the code
 	codeBuf := new(bytes.Buffer)
 	imports := make(map[string]bool)
-	imports["time"] = true
 	if bson {
 		imports["go.mongodb.org/mongo-driver/bson/primitive"] = true
 	}
+	for _, v := range structs {
+		for _, f := range v.Fields {
+			if f.Type == "*time.Time" || f.Type == "time.Time" {
+				imports["time"] = true
+			}
+		}
+	}
+
 	//for _, k := range getOrderedStructNames(structs) {
 	//	s := structs[k]
 	//	if s.GenerateCode {

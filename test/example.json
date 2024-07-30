@@ -108,6 +108,10 @@
         "id": {
           "type": "string"
         },
+        "date": {
+          "type": "string",
+          "format": "date-time"
+        },
         "version": {
           "type": "integer"
         }
