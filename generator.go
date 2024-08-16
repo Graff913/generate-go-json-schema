@@ -196,8 +196,8 @@ func (g *Generator) processObject(pkg string, name string, rootType, bson bool, 
 		f := Field{
 			Name:     "ObjectId",
 			JSONName: "_id",
-			Type:     "primitive.ObjectID",
-			Required: true,
+			Type:     "*primitive.ObjectID",
+			Required: false,
 		}
 		strct.Fields[f.Name] = f
 	}
