@@ -85,6 +85,13 @@
         "delete.task"
       ]
     },
+    "Json": {
+      "type": "string",
+      "enum": [
+        "create/json",
+        "delete/delete"
+      ]
+    },
     "Period": {
       "type": "object",
       "properties": {

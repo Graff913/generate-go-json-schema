@@ -329,10 +329,10 @@ func (g *Generator) processEnum(name string, schema *Schema) (typ string, err er
 	}
 
 	for _, val := range schema.EnumValue {
-		n := strings.Split(val, ".")
-		if len(n) == 1 {
-			n = strings.Split(val, "_")
+		f := func(c rune) bool {
+			return !unicode.IsLetter(c) && !unicode.IsNumber(c)
 		}
+		n := strings.FieldsFunc(val, f)
 		customName := name
 		for i := 0; i < len(n); i++ {
 			customName += toTitle(n[i])

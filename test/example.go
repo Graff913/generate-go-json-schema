@@ -51,6 +51,14 @@ type InfoV2 struct {
 	Version int    `json:"version"`
 }
 
+// Json
+type Json string
+
+const (
+	JsonCreateJson   Json = "create/json"
+	JsonDeleteDelete Json = "delete/delete"
+)
+
 // Period
 type Period struct {
 	From time.Time `json:"from"`
