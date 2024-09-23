@@ -4,22 +4,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path"
 )
 
 // ReadInputFiles from disk and convert to JSON schema.
-func ReadInputFiles(inputFiles []string, schemaKeyRequired bool) ([]*Schema, error) {
+func ReadInputFiles(inputFiles []AnalysisFile, schemaKeyRequired bool) ([]*Schema, error) {
 	schemas := make([]*Schema, len(inputFiles))
 	for i, file := range inputFiles {
-		b, err := ioutil.ReadFile(file)
+		b, err := os.ReadFile(file.Path)
 		if err != nil {
 			return nil, errors.New("failed to read the input file with error " + err.Error())
 		}
 
-		abPath, err := abs(file)
+		abPath, err := abs(file.Path)
 		if err != nil {
 			return nil, errors.New("failed to normalise input path with error " + err.Error())
 		}
@@ -30,6 +29,7 @@ func ReadInputFiles(inputFiles []string, schemaKeyRequired bool) ([]*Schema, err
 		}
 
 		schemas[i], err = ParseWithSchemaKeyRequired(string(b), &fileURI, schemaKeyRequired)
+		schemas[i].Root = file.Root
 		if err != nil {
 			var syntaxError *json.SyntaxError
 			if errors.As(err, &syntaxError) {

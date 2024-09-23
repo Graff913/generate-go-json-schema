@@ -24,6 +24,8 @@ type Schema struct {
 	Title       string
 	Description string
 
+	Root bool
+
 	// TypeValue is the schema instance type.
 	// http://json-schema.org/draft-07/json-schema-validation.html#rfc.section.6.1.1
 	TypeValue   interface{} `json:"type"`
@@ -192,15 +194,15 @@ func ParseWithSchemaKeyRequired(schema string, uri *url.URL, schemaKeyRequired b
 	err := json.Unmarshal([]byte(schema), s)
 
 	if err != nil {
-		return s, err
+		return nil, err
 	}
 
-	if s.ID() == "" {
-		s.ID06 = uri.String()
-	}
+	//if s.ID() == "" {
+	s.ID06 = uri.String()
+	//}
 
 	if schemaKeyRequired && s.SchemaType == "" {
-		return s, errors.New("JSON schema must have a $schema key unless schemaKeyRequired flag is set")
+		return nil, errors.New("JSON schema must have a $schema key unless schemaKeyRequired flag is set")
 	}
 
 	// validate root URI, it MUST be an absolute URI

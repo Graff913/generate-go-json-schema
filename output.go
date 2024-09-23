@@ -70,13 +70,15 @@ func Output(w io.Writer, g *Generator, pkg string, bson bool, tagOmitempty bool)
 		fmt.Fprintf(w, ")\n")
 	}
 
-	for _, k := range getOrderedFieldNames(aliases) {
-		a := aliases[k]
+	_ = aliases
 
-		fmt.Fprintln(w, "")
-		fmt.Fprintf(w, "// %s\n", a.Name)
-		fmt.Fprintf(w, "type %s %s\n", a.Name, a.Type)
-	}
+	//for _, k := range getOrderedFieldNames(aliases) {
+	//	a := aliases[k]
+	//
+	//	fmt.Fprintln(w, "")
+	//	fmt.Fprintf(w, "// %s\n", a.Name)
+	//	fmt.Fprintf(w, "type %s %s\n", a.Name, a.Type)
+	//}
 
 	for _, k := range getOrderedStructNames(structs) {
 		s := structs[k]

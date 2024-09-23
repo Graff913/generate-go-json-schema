@@ -50,7 +50,7 @@ func (r *RefResolver) GetPath(schema *Schema) string {
 }
 
 // GetSchemaByReference returns the schema.
-func (r *RefResolver) GetSchemaByReference(schema *Schema) (*Schema, error) {
+func (r *RefResolver) GetSchemaByReference(rootPath string, schema *Schema) (*Schema, error) {
 	u, err := url.Parse(schema.GetRoot().ID())
 	if err != nil {
 		return nil, err
@@ -62,7 +62,11 @@ func (r *RefResolver) GetSchemaByReference(schema *Schema) (*Schema, error) {
 	resolvedPath := u.ResolveReference(ref)
 	path, ok := r.pathToSchema[resolvedPath.String()]
 	if !ok {
-		return nil, errors.New("refresolver.GetSchemaByReference: reference not found: " + schema.Reference)
+		str := fmt.Sprintf("file://%s%s", rootPath, ref.Path)
+		path, ok = r.pathToSchema[str]
+		if !ok {
+			return nil, errors.New("refresolver.GetSchemaByReference: reference not found: " + schema.Reference)
+		}
 	}
 	return path, nil
 }

@@ -31,7 +31,7 @@ func New(schemas ...*Schema) *Generator {
 }
 
 // CreateTypes creates types from the JSON schemas, keyed by the golang name.
-func (g *Generator) CreateTypes(pkg string, bson bool) (err error) {
+func (g *Generator) CreateTypes(rootPath, pkg string, bson bool) (err error) {
 	if err := g.resolver.Init(); err != nil {
 		return err
 	}
@@ -39,29 +39,29 @@ func (g *Generator) CreateTypes(pkg string, bson bool) (err error) {
 	// extract the types
 	for _, schema := range g.schemas {
 		name := g.getSchemaName("", schema)
-		rootType, err := g.processSchema(pkg, name, true, bson, false, schema)
+		_, err := g.processSchema(rootPath, pkg, name, bson, false, schema) // rootType
 		if err != nil {
 			return err
 		}
 		// ugh: if it was anything but a struct the type will not be the name...
-		if rootType != "*"+name {
-			a := Field{
-				Name:        name,
-				JSONName:    "",
-				Type:        rootType,
-				Required:    false,
-				Description: schema.Description,
-			}
-			g.Aliases[a.Name] = a
-		}
+		//if rootType != "*"+name {
+		//	a := Field{
+		//		Name:        name,
+		//		JSONName:    "",
+		//		Type:        rootType,
+		//		Required:    false,
+		//		Description: schema.Description,
+		//	}
+		//	g.Aliases[a.Name] = a
+		//}
 	}
 	return
 }
 
 // process a block of $defs
-func (g *Generator) processDefinitions(pkg string, schema *Schema) error {
+func (g *Generator) processDefinitions(rootPath, pkg string, schema *Schema) error {
 	for key, subSchema := range schema.Definitions {
-		if _, err := g.processSchema(pkg, getGolangName(key), false, false, false, subSchema); err != nil {
+		if _, err := g.processSchema(rootPath, pkg, getGolangName(key), false, false, subSchema); err != nil {
 			return err
 		}
 	}
@@ -69,19 +69,19 @@ func (g *Generator) processDefinitions(pkg string, schema *Schema) error {
 }
 
 // process a reference string
-func (g *Generator) processReference(pkg string, schema *Schema, requires bool) (string, error) {
+func (g *Generator) processReference(rootPath, pkg string, schema *Schema, requires bool) (string, error) {
 	schemaPath := g.resolver.GetPath(schema)
 	if schema.Reference == "" {
 		return "", errors.New("processReference empty reference: " + schemaPath)
 	}
-	refSchema, err := g.resolver.GetSchemaByReference(schema)
+	refSchema, err := g.resolver.GetSchemaByReference(rootPath, schema)
 	if err != nil {
 		return "", errors.New("processReference: reference \"" + schema.Reference + "\" not found at \"" + schemaPath + "\"")
 	}
 	if refSchema.GeneratedType == "" {
 		// reference is not resolved yet. Do that now.
 		refSchemaName := g.getSchemaName("", refSchema)
-		typeName, err := g.processSchema(pkg, refSchemaName, false, false, requires, refSchema)
+		typeName, err := g.processSchema(rootPath, pkg, refSchemaName, false, requires, refSchema)
 		if err != nil {
 			return "", err
 		}
@@ -91,9 +91,9 @@ func (g *Generator) processReference(pkg string, schema *Schema, requires bool) 
 }
 
 // returns the type refered to by schema after resolving all dependencies
-func (g *Generator) processSchema(pkg string, schemaName string, rootType, bson, requires bool, schema *Schema) (typ string, err error) {
+func (g *Generator) processSchema(rootPath, pkg string, schemaName string, bson, requires bool, schema *Schema) (typ string, err error) {
 	if len(schema.Definitions) > 0 {
-		err := g.processDefinitions(pkg, schema)
+		err := g.processDefinitions(rootPath, pkg, schema)
 		if err != nil {
 			return "", err
 		}
@@ -110,7 +110,7 @@ func (g *Generator) processSchema(pkg string, schemaName string, rootType, bson,
 			}
 			switch schemaType {
 			case "object":
-				rv, err := g.processObject(pkg, name, rootType, bson, schema)
+				rv, err := g.processObject(rootPath, pkg, name, bson, schema)
 				if err != nil {
 					return "", err
 				}
@@ -118,7 +118,7 @@ func (g *Generator) processSchema(pkg string, schemaName string, rootType, bson,
 					return rv, nil
 				}
 			case "array":
-				rv, err := g.processArray(pkg, name, schema)
+				rv, err := g.processArray(rootPath, pkg, name, schema)
 				if err != nil {
 					return "", err
 				}
@@ -137,10 +137,10 @@ func (g *Generator) processSchema(pkg string, schemaName string, rootType, bson,
 		}
 	} else {
 		if schema.Reference != "" {
-			return g.processReference(pkg, schema, requires)
+			return g.processReference(rootPath, pkg, schema, requires)
 		}
 		if len(schema.OneOf) > 0 {
-			return g.processInterface(pkg, schemaName, requires, schema)
+			return g.processInterface(rootPath, pkg, schemaName, requires, schema)
 		}
 		if len(schema.EnumValue) > 0 {
 			return g.processEnum(schemaName, schema)
@@ -151,11 +151,11 @@ func (g *Generator) processSchema(pkg string, schemaName string, rootType, bson,
 
 // name: name of this array, usually the js key
 // schema: items element
-func (g *Generator) processArray(pkg string, name string, schema *Schema) (typeStr string, err error) {
+func (g *Generator) processArray(rootPath, pkg string, name string, schema *Schema) (typeStr string, err error) {
 	if schema.Items != nil {
 		// subType: fallback name in case this array contains inline object without a title
 		subName := g.getSchemaName(name+"Items", schema.Items)
-		subTyp, err := g.processSchema(pkg, subName, false, false, true, schema.Items)
+		subTyp, err := g.processSchema(rootPath, pkg, subName, false, true, schema.Items)
 		if err != nil {
 			return "", err
 		}
@@ -182,7 +182,7 @@ func (g *Generator) processArray(pkg string, name string, schema *Schema) (typeS
 // name: name of the struct (calculated by caller)
 // schema: detail incl properties & child objects
 // returns: generated type
-func (g *Generator) processObject(pkg string, name string, rootType, bson bool, schema *Schema) (typ string, err error) {
+func (g *Generator) processObject(rootPath, pkg string, name string, bson bool, schema *Schema) (typ string, err error) {
 	strct := Struct{
 		ID:          schema.ID(),
 		Name:        name,
@@ -192,7 +192,7 @@ func (g *Generator) processObject(pkg string, name string, rootType, bson bool, 
 	// cache the object name in case any sub-schemas recursively reference it
 	schema.GeneratedType = "*" + name
 	// regular properties
-	if rootType && bson {
+	if bson && schema.Root {
 		f := Field{
 			Name:     "ObjectId",
 			JSONName: "_id",
@@ -205,7 +205,7 @@ func (g *Generator) processObject(pkg string, name string, rootType, bson bool, 
 		fieldName := getGolangName(propKey)
 		// calculate sub-schema name here, may not actually be used depending on type of schema!
 		subSchemaName := g.getSchemaName(fieldName, prop)
-		fieldType, err := g.processSchema(pkg, subSchemaName, false, false, contains(schema.Required, propKey), prop)
+		fieldType, err := g.processSchema(rootPath, pkg, subSchemaName, false, contains(schema.Required, propKey), prop)
 		if err != nil {
 			return "", err
 		}
@@ -229,7 +229,7 @@ func (g *Generator) processObject(pkg string, name string, rootType, bson bool, 
 	if schema.AdditionalProperties != nil && schema.AdditionalProperties.AdditionalPropertiesBool == nil {
 		ap := (*Schema)(schema.AdditionalProperties)
 		apName := g.getSchemaName("", ap)
-		subTyp, err := g.processSchema(pkg, apName, false, false, true, ap)
+		subTyp, err := g.processSchema(rootPath, pkg, apName, false, true, ap)
 		if err != nil {
 			return "", err
 		}
@@ -290,7 +290,7 @@ func (g *Generator) processObject(pkg string, name string, rootType, bson bool, 
 	return getPrimitiveTypeName("object", name, true)
 }
 
-func (g *Generator) processInterface(pkg string, name string, requires bool, schema *Schema) (typ string, err error) {
+func (g *Generator) processInterface(rootPath, pkg string, name string, requires bool, schema *Schema) (typ string, err error) {
 	name = name + "Interface"
 	strct := Struct{
 		ID:          schema.ID(),
@@ -313,7 +313,7 @@ func (g *Generator) processInterface(pkg string, name string, requires bool, sch
 
 	if len(strct.Func.NameTypes) == 1 {
 		schema.Reference = *refer
-		return g.processReference(pkg, schema, requires)
+		return g.processReference(rootPath, pkg, schema, requires)
 	}
 
 	g.Structs[strct.Name] = strct

@@ -16,16 +16,17 @@ var (
 	p                     = flag.String("p", "main", "The package that the structs are created in.")
 	bson                  = flag.Bool("bson", false, "Generate bson tags")
 	omitempty             = flag.Bool("omitempty", false, "Generate omitempty tags")
+	rootPath              = flag.String("r", "", "The root path repo")
 	i                     = flag.String("i", "", "A single file path (used for backwards compatibility).")
 	schemaKeyRequiredFlag = flag.Bool("schemaKeyRequired", false, "Allow input files with no $schema key.")
 )
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		_, _ = fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
-		fmt.Fprintln(os.Stderr, "  paths")
-		fmt.Fprintln(os.Stderr, "\tThe input JSON Schema files.")
+		_, _ = fmt.Fprintln(os.Stderr, "  paths")
+		_, _ = fmt.Fprintln(os.Stderr, "\tThe input JSON Schema files.")
 	}
 
 	flag.Parse()
@@ -35,22 +36,28 @@ func main() {
 		inputFiles = append(inputFiles, *i)
 	}
 	if len(inputFiles) == 0 {
-		fmt.Fprintln(os.Stderr, "No input JSON Schema files.")
+		_, _ = fmt.Fprintln(os.Stderr, "No input JSON Schema files.")
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	schemas, err := generate.ReadInputFiles(inputFiles, *schemaKeyRequiredFlag)
+	analysisFiles, err := generate.AnalysisFiles(*rootPath, inputFiles)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+
+	schemas, err := generate.ReadInputFiles(analysisFiles, *schemaKeyRequiredFlag)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 
 	g := generate.New(schemas...)
 
-	err = g.CreateTypes(*p, *bson)
+	err = g.CreateTypes(*rootPath, *p, *bson)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failure generating structs: ", err)
+		_, _ = fmt.Fprintln(os.Stderr, "Failure generating structs: ", err)
 		os.Exit(1)
 	}
 
@@ -60,7 +67,7 @@ func main() {
 		w, err = os.Create(*o)
 
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error opening output file: ", err)
+			_, _ = fmt.Fprintln(os.Stderr, "Error opening output file: ", err)
 			return
 		}
 	}
