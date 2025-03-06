@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -329,18 +330,59 @@ func (g *Generator) processEnum(name string, schema *Schema) (typ string, err er
 	}
 
 	for _, val := range schema.EnumValue {
-		f := func(c rune) bool {
-			return !unicode.IsLetter(c) && !unicode.IsNumber(c)
-		}
-		n := strings.FieldsFunc(val, f)
 		customName := name
-		for i := 0; i < len(n); i++ {
-			customName += toTitle(n[i])
+
+		switch v := val.(type) {
+		case string:
+			f := func(c rune) bool {
+				return !unicode.IsLetter(c) && !unicode.IsNumber(c)
+			}
+			n := strings.FieldsFunc(v, f)
+			for i := 0; i < len(n); i++ {
+				customName += toTitle(n[i])
+			}
+			strct.EnumType = "string"
+			strct.Enums = append(strct.Enums, Enum{
+				Name:  customName,
+				Const: v,
+			})
+		case int:
+			customName += strconv.Itoa(v)
+			strct.EnumType = "int"
+			strct.Enums = append(strct.Enums, Enum{
+				Name:  customName,
+				Const: int(v),
+			})
+		case int32:
+			customName += strconv.Itoa(int(v))
+			strct.EnumType = "int"
+			strct.Enums = append(strct.Enums, Enum{
+				Name:  customName,
+				Const: int(v),
+			})
+		case int64:
+			customName += strconv.Itoa(int(v))
+			strct.EnumType = "int"
+			strct.Enums = append(strct.Enums, Enum{
+				Name:  customName,
+				Const: int(v),
+			})
+		case float32:
+			customName += strconv.FormatFloat(float64(v), 'f', 0, 64)
+			strct.EnumType = "int"
+			strct.Enums = append(strct.Enums, Enum{
+				Name:  customName,
+				Const: int(v),
+			})
+		case float64:
+			customName += strconv.FormatFloat(v, 'f', 0, 64)
+			strct.EnumType = "int"
+			strct.Enums = append(strct.Enums, Enum{
+				Name:  customName,
+				Const: int(v),
+			})
 		}
-		strct.Enums = append(strct.Enums, Enum{
-			Name:  customName,
-			Const: val,
-		})
+
 	}
 
 	g.Structs[strct.Name] = strct
@@ -496,7 +538,8 @@ type Struct struct {
 
 	Func Func
 
-	Enums []Enum
+	Enums    []Enum
+	EnumType string
 
 	GenerateCode   bool
 	AdditionalType string
@@ -509,7 +552,7 @@ type Func struct {
 
 type Enum struct {
 	Name  string
-	Const string
+	Const any
 }
 
 // Field defines the data required to generate a field in Go.

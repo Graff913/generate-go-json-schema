@@ -86,11 +86,16 @@ func Output(w io.Writer, g *Generator, pkg string, bson bool, tagOmitempty bool)
 		fmt.Fprintln(w, "")
 		outputNameAndDescriptionComment(s.Name, s.Description, w)
 		if len(s.Enums) > 0 {
-			fmt.Fprintf(w, "type %s string\n", s.Name)
+
+			fmt.Fprintf(w, "type %s %s\n", s.Name, s.EnumType)
 			fmt.Fprintln(w, "")
 			fmt.Fprintln(w, "const (")
 			for _, val := range s.Enums {
-				fmt.Fprintf(w, "\t%s %s = \"%s\"\n", val.Name, s.Name, val.Const)
+				if s.EnumType == "string" {
+					fmt.Fprintf(w, "\t%s %s = \"%s\"\n", val.Name, s.Name, val.Const)
+				} else {
+					fmt.Fprintf(w, "\t%s %s = %d\n", val.Name, s.Name, val.Const)
+				}
 			}
 			fmt.Fprintln(w, ")")
 		} else if s.Func.Name != "" {

@@ -30,7 +30,7 @@ type Schema struct {
 	// http://json-schema.org/draft-07/json-schema-validation.html#rfc.section.6.1.1
 	TypeValue   interface{} `json:"type"`
 	FormatValue interface{} `json:"format"`
-	EnumValue   []string    `json:"enum"`
+	EnumValue   []any       `json:"enum"`
 	Deprecated  bool        `json:"deprecated"`
 
 	// Definitions are inline re-usable schemas.
