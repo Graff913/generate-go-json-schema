@@ -102,7 +102,7 @@ func (g *Generator) processSchema(rootPath, pkg string, schemaName string, bson,
 	schema.FixMissingTypeValue()
 	// if we have multiple schema types, the golang type will be interface{}
 	typ = "interface{}"
-	types, isMultiType, pointer := schema.MultiType()
+	types, isMultiType, _ := schema.MultiType()
 	if len(types) > 0 {
 		for _, schemaType := range types {
 			name := schemaName
@@ -127,7 +127,7 @@ func (g *Generator) processSchema(rootPath, pkg string, schemaName string, bson,
 					return rv, nil
 				}
 			default:
-				rv, err := getPrimitiveTypeName(schemaType, "", !requires || pointer)
+				rv, err := getPrimitiveTypeName(schemaType, "")
 				if err != nil {
 					return "", err
 				}
@@ -160,7 +160,7 @@ func (g *Generator) processArray(rootPath, pkg string, name string, schema *Sche
 		if err != nil {
 			return "", err
 		}
-		finalType, err := getPrimitiveTypeName("array", subTyp, true)
+		finalType, err := getPrimitiveTypeName("array", subTyp)
 		if err != nil {
 			return "", err
 		}
@@ -191,13 +191,13 @@ func (g *Generator) processObject(rootPath, pkg string, name string, bson bool, 
 		Fields:      make(map[string]Field, len(schema.Properties)),
 	}
 	// cache the object name in case any sub-schemas recursively reference it
-	schema.GeneratedType = "*" + name
+	schema.GeneratedType = name
 	// regular properties
 	if bson && schema.Root {
 		f := Field{
 			Name:     "ObjectId",
 			JSONName: "_id",
-			Type:     "*primitive.ObjectID",
+			Type:     "primitive.ObjectID",
 			Required: false,
 		}
 		strct.Fields[f.Name] = f
@@ -288,7 +288,7 @@ func (g *Generator) processObject(rootPath, pkg string, name string, bson bool, 
 	g.Structs[strct.Name] = strct
 
 	// objects are always a pointer
-	return getPrimitiveTypeName("object", name, true)
+	return getPrimitiveTypeName("object", name)
 }
 
 func (g *Generator) processInterface(rootPath, pkg string, name string, requires bool, schema *Schema) (typ string, err error) {
@@ -411,7 +411,7 @@ func contains(s []string, e string) bool {
 	return false
 }
 
-func getPrimitiveTypeName(schemaType string, subType string, pointer bool) (name string, err error) {
+func getPrimitiveTypeName(schemaType string, subType string) (name string, err error) {
 	switch schemaType {
 	case "array":
 		if subType == "" {
@@ -419,19 +419,10 @@ func getPrimitiveTypeName(schemaType string, subType string, pointer bool) (name
 		}
 		return "[]" + subType, nil
 	case "boolean":
-		if pointer {
-			return "*bool", nil
-		}
 		return "bool", nil
 	case "integer":
-		if pointer {
-			return "*int", nil
-		}
 		return "int", nil
 	case "number":
-		if pointer {
-			return "*float64", nil
-		}
 		return "float64", nil
 	case "null":
 		return "nil", nil
@@ -439,19 +430,10 @@ func getPrimitiveTypeName(schemaType string, subType string, pointer bool) (name
 		if subType == "" {
 			return "error_creating_object", errors.New("can't create an object of an empty subtype")
 		}
-		if pointer {
-			return "*" + subType, nil
-		}
 		return subType, nil
 	case "string":
-		if pointer {
-			return "*string", nil
-		}
 		return "string", nil
 	case "time":
-		if pointer {
-			return "*time.Time", nil
-		}
 		return "time.Time", nil
 	}
 

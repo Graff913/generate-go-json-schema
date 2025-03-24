@@ -115,6 +115,10 @@ func Output(w io.Writer, g *Generator, pkg string, bson bool, tagOmitempty bool)
 			fmt.Fprintf(w, "type %s struct {\n", s.Name)
 			for _, fieldKey := range getOrderedFieldNames(s.Fields) {
 				f := s.Fields[fieldKey]
+				link := "*"
+				if f.Required {
+					link = ""
+				}
 				// Only apply omitempty if the field is not required.
 				omitempty := ",omitempty"
 				if tagOmitempty || f.Required {
@@ -127,7 +131,7 @@ func Output(w io.Writer, g *Generator, pkg string, bson bool, tagOmitempty bool)
 				if f.Description != "" {
 					outputFieldDescriptionComment(f.Description, w)
 				}
-				fmt.Fprintf(w, "  %s %s `json:\"%s%s\"%s`\n", f.Name, f.Type, f.JSONName, omitempty, bsonTag)
+				fmt.Fprintf(w, "  %s %s%s `json:\"%s%s\"%s`\n", f.Name, link, f.Type, f.JSONName, omitempty, bsonTag)
 			}
 			fmt.Fprintln(w, "}")
 		}
