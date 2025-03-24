@@ -144,7 +144,7 @@ func (g *Generator) processSchema(rootPath, pkg string, schemaName string, bson,
 			return g.processInterface(rootPath, pkg, schemaName, requires, schema)
 		}
 		if len(schema.EnumValue) > 0 {
-			return g.processEnum(schemaName, schema)
+			return g.processEnum(schemaName, schema, requires)
 		}
 	}
 	return // return interface{}
@@ -323,7 +323,7 @@ func (g *Generator) processInterface(rootPath, pkg string, name string, requires
 	return name, nil
 }
 
-func (g *Generator) processEnum(name string, schema *Schema) (typ string, err error) {
+func (g *Generator) processEnum(name string, schema *Schema, requires bool) (typ string, err error) {
 	strct := Struct{
 		ID:          schema.ID(),
 		Name:        name,
@@ -352,7 +352,7 @@ func (g *Generator) processEnum(name string, schema *Schema) (typ string, err er
 			strct.EnumType = "int"
 			strct.Enums = append(strct.Enums, Enum{
 				Name:  customName,
-				Const: int(v),
+				Const: v,
 			})
 		case int32:
 			customName += strconv.Itoa(int(v))
@@ -387,6 +387,10 @@ func (g *Generator) processEnum(name string, schema *Schema) (typ string, err er
 	}
 
 	g.Structs[strct.Name] = strct
+
+	if !requires {
+		return "*" + name, nil
+	}
 
 	return name, nil
 }
