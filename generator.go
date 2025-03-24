@@ -88,6 +88,9 @@ func (g *Generator) processReference(rootPath, pkg string, schema *Schema, requi
 		}
 		return typeName, nil
 	}
+	if !requires {
+		return "*" + refSchema.GeneratedType, nil
+	}
 	return refSchema.GeneratedType, nil
 }
 
