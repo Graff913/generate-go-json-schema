@@ -122,7 +122,7 @@ func (g *Generator) processSchema(rootPath, pkg string, schemaName string, bson,
 					return rv, nil
 				}
 			case "array":
-				rv, err := g.processArray(rootPath, pkg, name, requires, schema)
+				rv, err := g.processArray(rootPath, pkg, name, schema)
 				if err != nil {
 					return "", err
 				}
@@ -155,7 +155,7 @@ func (g *Generator) processSchema(rootPath, pkg string, schemaName string, bson,
 
 // name: name of this array, usually the js key
 // schema: items element
-func (g *Generator) processArray(rootPath, pkg string, name string, requires bool, schema *Schema) (typeStr string, err error) {
+func (g *Generator) processArray(rootPath, pkg string, name string, schema *Schema) (typeStr string, err error) {
 	if schema.Items != nil {
 		// subType: fallback name in case this array contains inline object without a title
 		subName := g.getSchemaName(name+"Items", schema.Items)
@@ -163,7 +163,11 @@ func (g *Generator) processArray(rootPath, pkg string, name string, requires boo
 		if err != nil {
 			return "", err
 		}
-		finalType, err := getPrimitiveTypeName("array", subTyp, true)
+		pointer := true
+		if strings.HasSuffix(subTyp, "Interface") {
+			pointer = false
+		}
+		finalType, err := getPrimitiveTypeName("array", subTyp, pointer)
 		if err != nil {
 			return "", err
 		}
@@ -425,7 +429,10 @@ func getPrimitiveTypeName(schemaType string, subType string, pointer bool) (name
 		if subType == "" {
 			return "error_creating_array", errors.New("can't create an array of an empty subtype")
 		}
-		return "[]*" + subType, nil
+		if pointer {
+			return "[]*" + subType, nil
+		}
+		return "[]" + subType, nil
 	case "boolean":
 		if pointer {
 			return "*bool", nil
