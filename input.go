@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 )
 
 // ReadInputFiles from disk and convert to JSON schema.
@@ -18,14 +19,16 @@ func ReadInputFiles(inputFiles []AnalysisFile, schemaKeyRequired bool) ([]*Schem
 			return nil, errors.New("failed to read the input file with error " + err.Error())
 		}
 
-		abPath, err := abs(file.Path)
+		abPath, err := filepath.Abs(file.Path) // получаем абсолютный путь с разделителями ОС
 		if err != nil {
 			return nil, errors.New("failed to normalise input path with error " + err.Error())
 		}
 
+		fixedPath := filepath.ToSlash(abPath) // преобразуем \ в / (Windows) или оставляем / (Unix)
+
 		fileURI := url.URL{
 			Scheme: "file",
-			Path:   abPath,
+			Path:   fixedPath,
 		}
 
 		schemas[i], err = ParseWithSchemaKeyRequired(string(b), &fileURI, schemaKeyRequired)
