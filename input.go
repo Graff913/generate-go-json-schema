@@ -29,7 +29,6 @@ func ReadInputFiles(inputFiles []AnalysisFile, schemaKeyRequired bool) ([]*Schem
 		}
 
 		schemas[i], err = ParseWithSchemaKeyRequired(string(b), &fileURI, schemaKeyRequired)
-		schemas[i].Root = file.Root
 		if err != nil {
 			var syntaxError *json.SyntaxError
 			if errors.As(err, &syntaxError) {
@@ -51,6 +50,8 @@ func ReadInputFiles(inputFiles []AnalysisFile, schemaKeyRequired bool) ([]*Schem
 			}
 			return nil, fmt.Errorf("failed to parse the input JSON schema file %s with error %v", file, err)
 		}
+
+		schemas[i].Root = file.Root
 	}
 
 	return schemas, nil
